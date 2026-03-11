@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏数据分析大屏</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: auto 400px;
+            gap: 20px;
+        }
+        .card {
+            background-color: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid #334155;
+        }
+        .stat-card {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #38bdf8;
+            margin: 10px 0;
+        }
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        .chart-card {
+            grid-column: span 2;
+        }
+        #levelChart {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>游戏实时数据分析大屏</h1>
+    </div>
+
+    <div class="dashboard">
+        <div class="card stat-card">
+            <div class="stat-label">今日活跃用户 (DAU)</div>
+            <div id="dauValue" class="stat-value">加载中...</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">今日对局场次</div>
+            <div id="matchValue" class="stat-value">加载中...</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">今日皮肤销量</div>
+            <div id="skinCountValue" class="stat-value">加载中...</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-label">今日销售额</div>
+            <div id="revenueValue" class="stat-value">加载中...</div>
+        </div>
+
+        <div class="card chart-card">
+            <h3>玩家段位分布</h3>
+            <div id="levelChart"></div>
+        </div>
+        
+        <div class="card chart-card">
+            <h3>系统公告</h3>
+            <p style="color: #94a3b8;">实时数据更新中，数据每 30 秒自动刷新一次。</p>
+            <p id="updateTime" style="font-size: 0.8rem; color: #64748b;"></p>
+        </div>
+    </div>
+
+    <script>
+        async function fetchData() {
+            try {
+                // 获取概览数据
+                const overviewRes = await fetch('/api/overview');
+                const overviewData = await overviewRes.json();
+                
+                if (overviewData.code === 200) {
+                    const data = overviewData.data;
+                    document.getElementById('dauValue').innerText = data.dau.toLocaleString();
+                    document.getElementById('matchValue').innerText = data.match.toLocaleString();
+                    document.getElementById('skinCountValue').innerText = data.skin_sell.count.toLocaleString();
+                    document.getElementById('revenueValue').innerText = '¥' + data.skin_sell.revenue.toLocaleString();
+                }
+
+                // 获取段位分布数据
+                const levelRes = await fetch('/api/level-distribution');
+                const levelData = await levelRes.json();
+                
+                if (levelData.code === 200) {
+                    updateLevelChart(levelData.data.level_distribution);
+                }
+
+                document.getElementById('updateTime').innerText = '最后更新时间: ' + new Date().toLocaleTimeString();
+            } catch (error) {
+                console.error('获取数据失败:', error);
+            }
+        }
+
+        let levelChart = null;
+
+        function updateLevelChart(data) {
+            if (!levelChart) {
+                levelChart = echarts.init(document.getElementById('levelChart'), 'dark');
+            }
+
+            const chartData = data.map(item => ({
+                name: item[0],
+                value: item[1]
+            }));
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}: {c} ({d}%)'
+                },
+                series: [
+                    {
+                        name: '段位分布',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: {
+                            borderRadius: 10,
+                            borderColor: '#1e293b',
+                            borderWidth: 2
+                        },
+                        label: {
+                            show: true,
+                            formatter: '{b}: {c}'
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: '16',
+                                fontWeight: 'bold'
+                            }
+                        },
+                        data: chartData
+                    }
+                ]
+            };
+
+            levelChart.setOption(option);
+        }
+
+        // 初始加载
+        fetchData();
+        // 定时刷新
+        setInterval(fetchData, 30000);
+
+        // 响应式图表
+        window.addEventListener('resize', () => {
+            levelChart && levelChart.resize();
+        });
+    </script>
+</body>
+</html>
