@@ -15,13 +15,14 @@ A real-time game data analytics platform built with Flask, ClickHouse, and EChar
 - **Database**: ClickHouse
 - **Frontend**: HTML5, CSS3, JavaScript, ECharts
 - **Containerization**: Docker & Docker Compose
+- **Package Manager**: [uv](https://github.com/astral-sh/uv)
 
 ## Quick Start
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Python 3.x
+- [uv](https://github.com/astral-sh/uv) installed
 
 ### Installation & Running
 
@@ -32,17 +33,17 @@ A real-time game data analytics platform built with Flask, ClickHouse, and EChar
 
 2. **Install Dependencies**:
    ```bash
-   pip install -r requirements.txt
+   uv sync
    ```
 
 3. **Run Data Simulation (Optional)**:
    ```bash
-   python3 simulate.py
+   uv run simulate.py
    ```
 
 4. **Start the Flask Application**:
    ```bash
-   python3 app.py
+   uv run app.py
    ```
 
 5. **Access the Dashboard**:
