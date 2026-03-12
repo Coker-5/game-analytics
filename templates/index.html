@@ -27,7 +27,6 @@
         .dashboard {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            grid-template-rows: auto 400px;
             gap: 20px;
         }
         .card {
@@ -50,12 +49,73 @@
             color: #94a3b8;
             font-size: 0.9rem;
         }
+        .total-label {
+            color: #64748b;
+            font-size: 0.75rem;
+            margin-top: 5px;
+            border-top: 1px solid #334155;
+            padding-top: 5px;
+        }
         .chart-card {
             grid-column: span 2;
+            height: 400px;
+        }
+        .sql-card {
+            grid-column: span 4;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
         #levelChart {
             width: 100%;
             height: 100%;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            background-color: #0f172a;
+            color: #10b981;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            resize: vertical;
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        .sql-result {
+            margin-top: 10px;
+            max-height: 300px;
+            overflow: auto;
+            background-color: #0f172a;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #334155;
+        }
+        th {
+            background-color: #1e293b;
+            color: #94a3b8;
+            position: sticky;
+            top: 0;
         }
     </style>
 </head>
@@ -65,32 +125,50 @@
     </div>
 
     <div class="dashboard">
+        <!-- 统计卡片 -->
         <div class="card stat-card">
             <div class="stat-label">今日活跃用户 (DAU)</div>
             <div id="dauValue" class="stat-value">加载中...</div>
+            <div id="totalPlayers" class="total-label">总用户数: --</div>
         </div>
         <div class="card stat-card">
             <div class="stat-label">今日对局场次</div>
             <div id="matchValue" class="stat-value">加载中...</div>
+            <div id="totalMatch" class="total-label">总对局数: --</div>
         </div>
         <div class="card stat-card">
             <div class="stat-label">今日皮肤销量</div>
             <div id="skinCountValue" class="stat-value">加载中...</div>
+            <div id="totalSkinCount" class="total-label">总销量: --</div>
         </div>
         <div class="card stat-card">
             <div class="stat-label">今日销售额</div>
             <div id="revenueValue" class="stat-value">加载中...</div>
+            <div id="totalRevenue" class="total-label">总额: --</div>
         </div>
 
+        <!-- 图表 -->
         <div class="card chart-card">
             <h3>玩家段位分布</h3>
             <div id="levelChart"></div>
         </div>
         
         <div class="card chart-card">
-            <h3>系统公告</h3>
-            <p style="color: #94a3b8;">实时数据更新中，数据每 30 秒自动刷新一次。</p>
+            <h3>系统状态</h3>
+            <p style="color: #94a3b8;">数据每 30 秒自动刷新一次。</p>
             <p id="updateTime" style="font-size: 0.8rem; color: #64748b;"></p>
+        </div>
+
+        <!-- SQL 控制台 -->
+        <div class="card sql-card">
+            <h3>远程 SQL 控制台</h3>
+            <textarea id="sqlInput" placeholder="请输入 ClickHouse SQL 语句... (例如: select * from game_events limit 10)"></textarea>
+            <div>
+                <button onclick="executeSQL()">执行查询</button>
+            </div>
+            <div id="sqlResultContainer" class="sql-result">
+                <!-- 结果表格将显示在这里 -->
+            </div>
         </div>
     </div>
 
@@ -103,10 +181,17 @@
                 
                 if (overviewData.code === 200) {
                     const data = overviewData.data;
-                    document.getElementById('dauValue').innerText = data.dau.toLocaleString();
-                    document.getElementById('matchValue').innerText = data.match.toLocaleString();
-                    document.getElementById('skinCountValue').innerText = data.skin_sell.count.toLocaleString();
-                    document.getElementById('revenueValue').innerText = '¥' + data.skin_sell.revenue.toLocaleString();
+                    // 今日数据
+                    document.getElementById('dauValue').innerText = data.today.dau.toLocaleString();
+                    document.getElementById('matchValue').innerText = data.today.match.toLocaleString();
+                    document.getElementById('skinCountValue').innerText = data.today.skin_sell_count.toLocaleString();
+                    document.getElementById('revenueValue').innerText = '¥' + data.today.revenue.toLocaleString();
+                    
+                    // 总计数据
+                    document.getElementById('totalPlayers').innerText = '总用户数: ' + data.total.players.toLocaleString();
+                    document.getElementById('totalMatch').innerText = '总对局数: ' + data.total.match.toLocaleString();
+                    document.getElementById('totalSkinCount').innerText = '总销量: ' + data.total.skin_sell_count.toLocaleString();
+                    document.getElementById('totalRevenue').innerText = '总额: ¥' + data.total.revenue.toLocaleString();
                 }
 
                 // 获取段位分布数据
@@ -169,6 +254,51 @@
             };
 
             levelChart.setOption(option);
+        }
+
+        async function executeSQL() {
+            const sql = document.getElementById('sqlInput').value.trim();
+            const container = document.getElementById('sqlResultContainer');
+            
+            if (!sql) return;
+            
+            container.innerHTML = '<p style="padding: 10px;">执行中...</p>';
+            
+            try {
+                const response = await fetch('/api/query-sql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql })
+                });
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    if (result.data.rows.length === 0) {
+                        container.innerHTML = '<p style="padding: 10px;">查询成功，但没有返回数据。</p>';
+                        return;
+                    }
+                    
+                    let html = '<table><thead><tr>';
+                    result.data.columns.forEach(col => {
+                        html += `<th>${col}</th>`;
+                    });
+                    html += '</tr></thead><tbody>';
+                    
+                    result.data.rows.forEach(row => {
+                        html += '<tr>';
+                        row.forEach(cell => {
+                            html += `<td>${cell !== null ? cell : 'NULL'}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `<p style="padding: 10px; color: #ef4444;">错误: ${result.msg}</p>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<p style="padding: 10px; color: #ef4444;">请求失败: ${error.message}</p>`;
+            }
         }
 
         // 初始加载
