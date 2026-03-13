@@ -9,6 +9,9 @@ A real-time game data analytics platform built with Flask, ClickHouse, and EChar
 - **Unified API**: Standardized API response format for better frontend-backend integration.
 - **Data Visualization**: Beautiful dashboard powered by ECharts for clear data insights.
 
+- <img width="2166" height="1217" alt="image" src="https://github.com/user-attachments/assets/55500df1-d7e4-48dd-a092-23b49b985acd" />
+
+
 ## Tech Stack
 
 - **Backend**: Flask (Python)
