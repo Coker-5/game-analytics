@@ -164,7 +164,8 @@ class ClickHouseRepository:
         """
         sql = f"""
         WITH date_range AS (
-            SELECT arrayJoin(range(toDate(today()) - {days}, toDate(today()))) as calc_date
+            SELECT toDate(today()) - number as calc_date
+            FROM numbers({days})
         ),
         new_users AS (
             SELECT first_login_date as date, count(*) as new_count
@@ -175,10 +176,9 @@ class ClickHouseRepository:
         daily_retention AS (
             SELECT 
                 toDate(event_time) - 1 as date,
-                count(DISTINCT user_id) as retained_count
+                uniq(user_id) as retained_count
             FROM game_events
             WHERE event_name = 'login'
-              AND toDate(event_time) > toDate(event_time) - 1
               AND toDate(event_time) >= toDate(today()) - {days} + 1
             GROUP BY toDate(event_time) - 1
         )

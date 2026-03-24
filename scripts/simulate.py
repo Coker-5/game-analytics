@@ -9,7 +9,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import random
-import json
 import time
 import signal
 from datetime import datetime, timedelta
@@ -133,37 +132,46 @@ def init_players(count=500):
 
 
 def generate_hourly_events(producer, players, events_per_hour=500):
-    """生成一小时的事件数据"""
+    """生成一小时的事件数据 - 按真实时间间隔"""
     global current_sim_time
 
-    # 将 500 条数据均匀分布在一小时内
-    events = []
     hour_start = current_sim_time
     hour_end = hour_start + timedelta(hours=1)
+    events_generated = 0
 
-    for i in range(events_per_hour):
-        # 计算这条事件的时间戳（均匀分布）
-        progress = i / events_per_hour
-        event_time = hour_start + timedelta(seconds=progress * 3600)
-        current_sim_time = event_time
+    print(f"时间范围: {hour_start.strftime('%H:%M')} - {hour_end.strftime('%H:%M')}")
+    print("生成中...\n")
 
+    while events_generated < events_per_hour and running:
+        # 随机等待 5-20 秒（模拟真实玩家行为间隔）
+        sleep_seconds = random.randint(5, 20)
+        time.sleep(sleep_seconds)
+
+        # 模拟时间也前进
+        current_sim_time += timedelta(seconds=sleep_seconds)
+
+        # 如果时间超出一小时，退出循环
+        if current_sim_time >= hour_end:
+            break
+
+        # 随机选择一个在线或离线的玩家
         player = random.choice(players)
         event_name, next_status = get_next_event(player["status"])
         event = make_event(player, event_name)
 
-        # 发送事件
-        future = producer.send(Config.KAFKA_TOPIC_EVENTS, value=event.to_json())
-        future.get(timeout=10)
+        # 异步发送事件（不阻塞）
+        producer.send(Config.KAFKA_TOPIC_EVENTS, value=event.to_json())
 
-        print(
-            f"[{event_time.strftime('%H:%M:%S')}] "
-            f"用户 {player['user_id']} 事件 {event_name}: "
-            f"{player['status']} -> {next_status}"
-        )
+        events_generated += 1
 
+        # 每 50 条打印一次进度
+        if events_generated % 50 == 0:
+            print(f"  已生成 {events_generated}/{events_per_hour} 条事件")
+
+        # 更新玩家状态
         player["status"] = next_status
 
-    return events_per_hour
+    return events_generated
 
 
 def main():
@@ -171,7 +179,7 @@ def main():
     global current_sim_time
 
     print("=== 游戏事件模拟器启动 ===")
-    print(f"目标: 每小时生成 500 条事件")
+    print(f"目标: 每小时生成 500 条事件（间隔 5-20 秒）")
     print("按 Ctrl+C 停止运行\n")
 
     # 初始化 Kafka 生产者
@@ -192,30 +200,24 @@ def main():
 
         print(f"\n{'=' * 50}")
         print(f"开始生成 {current_sim_time.strftime('%Y-%m-%d %H:%M')} 的事件数据")
-        print(f"{'=' * 50}\n")
+        print(f"{'=' * 50}")
 
         try:
-            # 生成 500 条事件
+            # 生成 500 条事件（按真实时间间隔）
             hour_events = generate_hourly_events(producer, players, 500)
             total_events += hour_events
 
-            print(f"\n本小时生成完成: {hour_events} 条事件")
-            print(f"累计生成: {total_events} 条事件")
+            elapsed = (datetime.now() - hour_start).total_seconds()
+            print(f"\n✓ 本小时完成: {hour_events} 条事件")
+            print(f"  实际耗时: {elapsed:.1f} 秒")
+            print(f"  累计生成: {total_events} 条事件")
 
         except Exception as e:
             print(f"生成事件时出错: {e}")
             time.sleep(5)
             continue
 
-        # 计算还需等待的时间
-        elapsed = (datetime.now() - hour_start).total_seconds()
-        sleep_time = 3600 - elapsed
-
-        if sleep_time > 0 and running:
-            print(f"等待 {sleep_time:.1f} 秒进入下一小时...\n")
-            time.sleep(sleep_time)
-
-        # 时间前进一小时
+        # 进入下一小时
         current_sim_time += timedelta(hours=1)
 
     print(f"\n模拟器已停止。累计生成 {total_events} 条事件")
