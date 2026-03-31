@@ -1,4 +1,4 @@
-# Game Analytics Dashboard
+# PlaySight
 
 A real-time game data analytics platform built with Flask, ClickHouse, and ECharts.
 
@@ -16,7 +16,7 @@ A real-time game data analytics platform built with Flask, ClickHouse, and EChar
 ## Project Structure
 
 ```
-game-analytics/
+playsight/
 ├── main.py                   # Flask application entry
 ├── game_analytics/           # Main package
 │   ├── app.py               # Flask app factory
