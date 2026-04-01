@@ -1,6 +1,8 @@
-# PlaySight
+# PlaySight - 实时游戏分析系统
 
 A real-time game data analytics platform built with Flask, ClickHouse, and ECharts.
+
+**演示地址**: http://112.126.59.73/
 
 ## Features
 
@@ -32,7 +34,6 @@ playsight/
 ├── docker-compose.yml       # Docker services
 └── pyproject.toml           # Python dependencies
 ```
->>>>>>> 92380cf (Add retention analytics dashboard and continuous data simulator)
 
 ## Tech Stack
 
