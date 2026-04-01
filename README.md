@@ -1,8 +1,8 @@
-# PlaySight - 实时游戏分析系统
+# PlaySight - Real-time Game Analytics System
 
 A real-time game data analytics platform built with Flask, ClickHouse, and ECharts.
 
-**演示地址**: http://112.126.59.73/
+**Live Demo**: [http://112.126.59.73/](http://112.126.59.73/)
 
 ## Features
 
