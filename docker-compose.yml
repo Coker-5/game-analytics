@@ -15,6 +15,13 @@ services:
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_HEAP_OPTS=-Xmx384m -Xms128m
+      - KAFKA_LOG_RETENTION_HOURS=24
+      - KAFKA_LOG_RETENTION_BYTES=1073741824
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     volumes:
       - kafka_data:/var/lib/kafka/data
 
@@ -24,6 +31,12 @@ services:
     ports:
       - "8123:8123"
       - "9000:9000"
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    environment:
+      - CLICKHOUSE_DB=game
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     ulimits:

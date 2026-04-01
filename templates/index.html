@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>游戏数据分析大屏</title>
+    <title>Playsight - 实时游戏分析系统</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         body {
@@ -121,7 +121,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>游戏实时数据分析大屏</h1>
+        <h1>Playsight - 实时游戏分析系统</h1>
     </div>
 
     <div class="dashboard">
@@ -180,7 +180,7 @@
         <div class="card sql-card">
             <h3>远程 SQL 控制台</h3>
             <p id="updateTime" style="font-size: 0.8rem; color: #64748b; margin-top: -10px; margin-bottom: 10px;"></p>
-            <textarea id="sqlInput" placeholder="请输入 ClickHouse SQL 语句... (例如: select * from game_events limit 10)"></textarea>
+            <textarea id="sqlInput" placeholder="请输入 ClickHouse SQL 语句... (例如: select * from game_events limit 10; select * from users limit 10)"></textarea>
             <div>
                 <button onclick="executeSQL()">执行查询</button>
             </div>

@@ -11,29 +11,28 @@ from game_analytics.config import Config
 class ClickHouseRepository:
     """ClickHouse 数据仓库"""
 
-    _instance = None
+    def __init__(self):
+        self.host = Config.CLICKHOUSE_HOST
+        self.port = Config.CLICKHOUSE_PORT
+        self.database = Config.CLICKHOUSE_DATABASE
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._init_client()
-        return cls._instance
-
-    def _init_client(self):
-        """初始化 ClickHouse 客户端"""
-        self.client = clickhouse_connect.get_client(
-            host=Config.CLICKHOUSE_HOST,
-            port=Config.CLICKHOUSE_PORT,
-            database=Config.CLICKHOUSE_DATABASE,
+    def _get_client(self):
+        """获取 ClickHouse 客户端（每次查询创建新实例避免并发问题）"""
+        return clickhouse_connect.get_client(
+            host=self.host,
+            port=self.port,
+            database=self.database,
         )
 
-    def query(self, sql: str) -> clickhouse_connect.driver.ClientResult:
+    def query(self, sql: str) -> Any:
         """执行 SQL 查询"""
-        return self.client.query(sql)
+        client = self._get_client()
+        return client.query(sql)
 
     def insert(self, table: str, data: List[List[Any]]):
         """插入数据"""
-        self.client.insert(table, data)
+        client = self._get_client()
+        client.insert(table, data)
 
     def get_today_dau(self) -> int:
         """获取今日 DAU"""
@@ -103,54 +102,36 @@ class ClickHouseRepository:
             包含次日留存、三日留存、七日留存数据的字典
         """
         sql = f"""
-        WITH 
-            new_users AS (
-                SELECT DISTINCT user_id 
-                FROM users FINAL 
-                WHERE first_login_date = '{date}'
-            ),
-            day1_active AS (
-                SELECT DISTINCT user_id 
-                FROM game_events 
-                WHERE event_name = 'login' 
-                  AND toDate(event_time) = toDate('{date}') + 1
-            ),
-            day3_active AS (
-                SELECT DISTINCT user_id 
-                FROM game_events 
-                WHERE event_name = 'login' 
-                  AND toDate(event_time) = toDate('{date}') + 3
-            ),
-            day7_active AS (
-                SELECT DISTINCT user_id 
-                FROM game_events 
-                WHERE event_name = 'login' 
-                  AND toDate(event_time) = toDate('{date}') + 7
-            )
-        SELECT 
-            COUNT(n.user_id) as total_new_users,
-            COUNTIf(d1.user_id != '') as day1_retained,
-            COUNTIf(d3.user_id != '') as day3_retained,
-            COUNTIf(d7.user_id != '') as day7_retained,
-            ROUND(COUNTIf(d1.user_id != '') * 100.0 / COUNT(n.user_id), 2) as day1_rate,
-            ROUND(COUNTIf(d3.user_id != '') * 100.0 / COUNT(n.user_id), 2) as day3_rate,
-            ROUND(COUNTIf(d7.user_id != '') * 100.0 / COUNT(n.user_id), 2) as day7_rate
-        FROM new_users n
-        LEFT JOIN day1_active d1 ON n.user_id = d1.user_id
-        LEFT JOIN day3_active d3 ON n.user_id = d3.user_id
-        LEFT JOIN day7_active d7 ON n.user_id = d7.user_id
+        SELECT
+            (SELECT count(DISTINCT user_id) FROM users WHERE first_login_date = '{date}') as total_new_users,
+            (SELECT count(DISTINCT user_id) FROM users u
+             ANY INNER JOIN game_events e ON u.user_id = e.user_id
+             WHERE u.first_login_date = '{date}'
+               AND e.event_name = 'login'
+               AND toDate(e.event_time) = toDate('{date}') + 1) as day1_retained,
+            (SELECT count(DISTINCT user_id) FROM users u
+             ANY INNER JOIN game_events e ON u.user_id = e.user_id
+             WHERE u.first_login_date = '{date}'
+               AND e.event_name = 'login'
+               AND toDate(e.event_time) = toDate('{date}') + 3) as day3_retained,
+            (SELECT count(DISTINCT user_id) FROM users u
+             ANY INNER JOIN game_events e ON u.user_id = e.user_id
+             WHERE u.first_login_date = '{date}'
+               AND e.event_name = 'login'
+               AND toDate(e.event_time) = toDate('{date}') + 7) as day7_retained
         """
         result = self.query(sql)
-        row = result.result_rows[0] if result.result_rows else [0, 0, 0, 0, 0, 0, 0]
+        row = result.result_rows[0] if result.result_rows else [0, 0, 0, 0]
+        total = row[0] if row[0] > 0 else 1
         return {
             "date": date,
             "total_new_users": row[0],
             "day1_retained": row[1],
             "day3_retained": row[2],
             "day7_retained": row[3],
-            "day1_rate": row[4],
-            "day3_rate": row[5],
-            "day7_rate": row[6],
+            "day1_rate": round(row[1] * 100.0 / total, 2),
+            "day3_rate": round(row[2] * 100.0 / total, 2),
+            "day7_rate": round(row[3] * 100.0 / total, 2),
         }
 
     def get_daily_retention_trend(self, days: int = 7) -> List[Dict[str, Any]]:
@@ -163,50 +144,30 @@ class ClickHouseRepository:
             每日留存数据列表
         """
         sql = f"""
-        WITH date_range AS (
-            SELECT toDate(today()) - number as calc_date
+        SELECT
+            d.date,
+            uniq(u.user_id) as total_new_users,
+            uniqIf(e.user_id, toDate(e.event_time) = d.date + 1) as day1_retained
+        FROM (
+            SELECT toDate(today()) - number as date
             FROM numbers({days})
-        ),
-        new_users AS (
-            SELECT first_login_date as date, count(*) as new_count
-            FROM users FINAL
-            WHERE first_login_date >= toDate(today()) - {days}
-            GROUP BY first_login_date
-        ),
-        new_user_list AS (
-            SELECT user_id, first_login_date as date
-            FROM users FINAL
-            WHERE first_login_date >= toDate(today()) - {days}
-        ),
-        daily_retention AS (
-            SELECT 
-                n.date as date,
-                uniq(e.user_id) as retained_count
-            FROM new_user_list n
-            INNER JOIN game_events e ON n.user_id = e.user_id
-            WHERE e.event_name = 'login'
-              AND toDate(e.event_time) = n.date + 1
-            GROUP BY n.date
-        )
-        SELECT 
-            d.calc_date as date,
-            COALESCE(n.new_count, 0) as total_new_users,
-            COALESCE(r.retained_count, 0) as day1_retained,
-            ROUND(COALESCE(r.retained_count, 0) * 100.0 / NULLIF(n.new_count, 0), 2) as day1_rate
-        FROM date_range d
-        LEFT JOIN new_users n ON d.calc_date = n.date
-        LEFT JOIN daily_retention r ON d.calc_date = r.date
-        ORDER BY d.calc_date
+        ) d
+        LEFT JOIN users u ON u.first_login_date = d.date
+        LEFT JOIN game_events e ON u.user_id = e.user_id AND e.event_name = 'login'
+        GROUP BY d.date
+        ORDER BY d.date
         """
         result = self.query(sql)
         data = []
         for row in result.result_rows:
+            total = row[1] if row[1] > 0 else 1
+            rate = round(row[2] * 100.0 / total, 2) if row[2] > 0 else 0
             data.append(
                 {
                     "date": str(row[0]),
                     "total_new_users": row[1],
                     "day1_retained": row[2],
-                    "day1_rate": row[3] if row[3] is not None else 0,
+                    "day1_rate": rate,
                 }
             )
         return data

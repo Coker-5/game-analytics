@@ -58,7 +58,7 @@ def main():
             continue
 
         # 写入 ClickHouse
-        if len(mes_list) >= 5000:
+        if len(mes_list) >= 10:
             try:
                 repo.insert("game_events", mes_list)
                 print(f"成功插入 {len(mes_list)} 条数据到 ClickHouse")
