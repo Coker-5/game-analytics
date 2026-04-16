@@ -1,6 +1,6 @@
-# PlaySight - Real-time Game Analytics System
+# 实时行为分析系统
 
-A real-time game data analytics platform built with Flask, ClickHouse, and ECharts.
+A real-time game behavior analytics platform built with Flask, ClickHouse, and ECharts.
 
 **Live Demo**: [http://112.126.59.73/](http://112.126.59.73/)
 
@@ -9,6 +9,7 @@ A real-time game data analytics platform built with Flask, ClickHouse, and EChar
 - **Real-time Overview**: Monitor DAU (Daily Active Users), match counts, skin sales, and total revenue.
 - **Player Distribution**: Visualize player level distribution with interactive charts.
 - **Retention Analytics**: Track day-1, day-3, and day-7 retention rates with trend visualization.
+- **Behavior Funnel**: Track today's fixed conversion path `match_start -> match_end -> skin_buy` with `windowFunnel(7200)`.
 - **SQL Console**: Execute custom ClickHouse SQL queries directly from the dashboard.
 - **Continuous Data Generation**: Automated event simulator running 24/7 with realistic intervals.
 - **Data Visualization**: Beautiful dashboard powered by ECharts for clear data insights.
@@ -27,6 +28,7 @@ playsight/
 │   ├── repositories/        # Data access layer (ClickHouse)
 │   ├── services/            # Business logic
 │   └── routes/              # API routes
+│       └── funnel.py        # Fixed-path funnel API
 ├── scripts/                  # Executable scripts
 │   ├── simulate.py          # Event simulator (runs continuously)
 │   └── consume.py           # Kafka consumer
@@ -63,17 +65,17 @@ playsight/
    uv sync
    ```
 
-3. **Run Data Simulator** (generate events to Kafka, runs continuously):
+3. **Run Kafka Consumer** (write to ClickHouse):
+   ```bash
+   uv run scripts/consume.py
+   ```
+
+4. **Run Data Simulator** (generate events to Kafka, runs continuously):
    ```bash
    uv run scripts/simulate.py
    ```
    - Generates ~500 events per hour with realistic 5-20 second intervals
    - Simulates real player behavior patterns
-
-4. **Run Kafka Consumer** (write to ClickHouse):
-   ```bash
-   uv run scripts/consume.py
-   ```
 
 5. **Start Flask Application**:
    ```bash
@@ -89,6 +91,7 @@ playsight/
 - `GET /`: The analytics dashboard
 - `GET /api/overview`: Returns daily statistics (DAU, matches, revenue)
 - `GET /api/level-distribution`: Returns player level distribution data
+- `GET /api/funnel/default`: Returns today's fixed behavior funnel for `match_start -> match_end -> skin_buy`
 
 ### Retention Analytics
 - `GET /api/retention/<date>`: Get retention data for a specific date
@@ -111,7 +114,12 @@ playsight/
 - **Statistics Cards**: Yesterday's new users and retention rates (day-1, day-3, day-7)
 - **Trend Chart**: 7-day retention trend with dual Y-axes (retention rate + new users)
 
-### 3. SQL Console
+### 3. Behavior Funnel
+- **Fixed Path**: `match_start -> match_end -> skin_buy`
+- **Time Scope**: Today's events only
+- **Display**: Funnel title shows the statistics date directly in the UI
+
+### 4. SQL Console
 - Execute custom ClickHouse queries
 - View results in formatted tables
 - Supports all ClickHouse SQL features
@@ -136,7 +144,7 @@ The simulator (`scripts/simulate.py`) runs continuously and:
 ## Architecture
 
 - **Models**: Data model definitions (Event dataclass)
-- **Repositories**: ClickHouse data access with singleton pattern and retention queries
+- **Repositories**: ClickHouse data access with singleton pattern, retention queries, and `windowFunnel`-based behavior funnel calculation
 - **Services**: Business logic layer with event simulation
 - **Routes**: Flask blueprint-based API routes
 

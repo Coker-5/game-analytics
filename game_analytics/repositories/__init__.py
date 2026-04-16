@@ -134,6 +134,58 @@ class ClickHouseRepository:
             "day7_rate": round(row[3] * 100.0 / total, 2),
         }
 
+    def get_default_funnel_data(self) -> Dict[str, Any]:
+        """获取今日固定路径漏斗数据"""
+        sql = """
+        SELECT
+            level,
+            count() AS user_count
+        FROM (
+            SELECT
+                user_id,
+                windowFunnel(7200)(
+                    event_time,
+                    event_name = 'match_start',
+                    event_name = 'match_end',
+                    event_name = 'skin_buy'
+                ) AS level
+            FROM game_events
+            WHERE event_name IN ('match_start', 'match_end', 'skin_buy')
+              AND toDate(event_time) = today()
+            GROUP BY user_id
+        )
+        GROUP BY level
+        ORDER BY level
+        """
+        result = self.query(sql)
+
+        level_counts = {0: 0, 1: 0, 2: 0, 3: 0}
+        for level, user_count in result.result_rows:
+            level_counts[int(level)] = user_count
+
+        match_start_count = (
+            level_counts[1] + level_counts[2] + level_counts[3]
+        )
+        match_end_count = level_counts[2] + level_counts[3]
+        skin_buy_count = level_counts[3]
+
+        return {
+            "match_start_count": match_start_count,
+            "match_end_count": match_end_count,
+            "skin_buy_count": skin_buy_count,
+            "match_start_rate": 100.0 if match_start_count > 0 else 0,
+            "match_end_rate": round(
+                match_end_count * 100.0 / match_start_count, 2
+            )
+            if match_start_count > 0
+            else 0,
+            "skin_buy_rate": round(skin_buy_count * 100.0 / match_end_count, 2)
+            if match_end_count > 0
+            else 0,
+            "total_users": match_start_count,
+            "level_distribution": level_counts,
+        }
+
     def get_daily_retention_trend(self, days: int = 7) -> List[Dict[str, Any]]:
         """获取最近 N 天的留存趋势
 

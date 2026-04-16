@@ -17,11 +17,13 @@ def create_app() -> Flask:
     from game_analytics.routes.query import bp as query_bp
     from game_analytics.routes.distribution import bp as distribution_bp
     from game_analytics.routes.retention import bp as retention_bp
+    from game_analytics.routes.funnel import bp as funnel_bp
 
     app.register_blueprint(overview_bp)
     app.register_blueprint(query_bp)
     app.register_blueprint(distribution_bp)
     app.register_blueprint(retention_bp)
+    app.register_blueprint(funnel_bp)
 
     return app
 
